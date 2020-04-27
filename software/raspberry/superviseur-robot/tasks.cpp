@@ -17,6 +17,7 @@
 
 #include "tasks.h"
 #include <stdexcept>
+#include "comrobot.h"
 
 // Déclaration des priorités des taches
 #define PRIORITY_TSERVER 30
@@ -26,6 +27,7 @@
 #define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
+#define PRIORITY_TBATTERY 18
 
 /*
  * Some remarks:
@@ -70,6 +72,10 @@ void Tasks::Init() {
         exit(EXIT_FAILURE);
     }
     if (err = rt_mutex_create(&mutex_move, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_mutex_create(&mutex_battery, NULL)) {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -123,6 +129,10 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_task_create(&th_battery, "th_battery", 0, PRIORITY_TBATTERY, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     cout << "Tasks created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -164,6 +174,10 @@ void Tasks::Run() {
         exit(EXIT_FAILURE);
     }
     if (err = rt_task_start(&th_move, (void(*)(void*)) & Tasks::MoveTask, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&th_battery, (void(*)(void*)) & Tasks::GetBatteryTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -272,9 +286,12 @@ void Tasks::ReceiveFromMonTask(void *arg) {
                 msgRcv->CompareID(MESSAGE_ROBOT_GO_RIGHT) ||
                 msgRcv->CompareID(MESSAGE_ROBOT_STOP)) {
 
-            rt_mutex_acquire(&mutex_move, TM_INFINITE);
+            rt_mutex_acquire(&mutex_move, TM_INFINITE);  
             move = msgRcv->GetID();
             rt_mutex_release(&mutex_move);
+        } else if (msgRcv->CompareID(MESSAGE_ANSWER_ACK)){
+            
+            cout<<"ICI C'EST RECEIVEFROmMON";
         }
         delete(msgRcv); // mus be deleted manually, no consumer
     }
@@ -383,6 +400,50 @@ void Tasks::MoveTask(void *arg) {
     }
 }
 
+void Tasks::GetBatteryTask(void *arg) {
+    int rs;
+    int cpBattery;
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_barrier, TM_INFINITE);   
+    
+    /**************************************************************************************/
+    /* The task starts here                                                               */
+    /**************************************************************************************/
+
+    rt_task_set_periodic(NULL, TM_NOW, 1000000000);
+    
+    while(1){
+        Message * msgSend;
+        
+        rt_task_wait_period(NULL);
+        cout << "Periodic battery update";
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        rs = robotStarted;
+        rt_mutex_release(&mutex_robotStarted);
+        
+        if(rs==1){
+            rt_mutex_acquire(&mutex_battery, TM_INFINITE);
+            cpBattery = battery_ask;
+            rt_mutex_release(&mutex_battery);
+            
+            cout << " battery: " << cpBattery;
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend=robot.Write(new Message((MessageID)cpBattery));
+            rt_mutex_release(&mutex_robot);
+            cout << msgSend->GetID();
+            cout << ")" << endl;
+
+            WriteInQueue(&q_messageToMon, msgSend);
+            
+            if (msgSend->GetID() == MESSAGE_ANSWER_ACK) {
+                  cout<<"OK ON A EU L'ACK MTN QUE FAIRE?";
+            }
+        }
+        cout << endl << flush;
+    }
+}
+
 /**
  * Write a message in a given queue
  * @param queue Queue identifier
@@ -414,4 +475,3 @@ Message *Tasks::ReadInQueue(RT_QUEUE *queue) {
 
     return msg;
 }
-

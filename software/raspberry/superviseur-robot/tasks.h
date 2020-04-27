@@ -66,7 +66,8 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
-    
+    int battery_ask = MESSAGE_ROBOT_BATTERY_GET;
+    int battery_level = MESSAGE_ROBOT_BATTERY_LEVEL;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -76,6 +77,7 @@ private:
     RT_TASK th_openComRobot;
     RT_TASK th_startRobot;
     RT_TASK th_move;
+    RT_TASK th_battery;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -84,6 +86,7 @@ private:
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
+    RT_MUTEX mutex_battery;
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -132,6 +135,10 @@ private:
      */
     void MoveTask(void *arg);
     
+     /**
+     * @brief Thread handling control of the battery level indicator.
+     */   
+    void GetBatteryTask(void *arg);
     /**********************************************************************/
     /* Queue services                                                     */
     /**********************************************************************/
@@ -148,8 +155,9 @@ private:
      * @return Message read
      */
     Message *ReadInQueue(RT_QUEUE *queue);
-
+    
+    
 };
+    
 
 #endif // __TASKS_H__ 
-
