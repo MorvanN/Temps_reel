@@ -76,6 +76,7 @@ private:
     RT_TASK th_receiveFromMon;
     RT_TASK th_openComRobot;
     RT_TASK th_startRobot;
+    RT_TASK th_startRobotWithWD;
     RT_TASK th_move;
     RT_TASK th_battery;
     
@@ -85,8 +86,10 @@ private:
     RT_MUTEX mutex_monitor;
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
+    RT_MUTEX mutex_robotStartedWithWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
+    
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -95,7 +98,7 @@ private:
     RT_SEM sem_openComRobot;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
-
+    RT_SEM sem_startRobotWithWD;
     /**********************************************************************/
     /* Message queues                                                     */
     /**********************************************************************/
@@ -129,6 +132,11 @@ private:
      * @brief Thread starting the communication with the robot.
      */
     void StartRobotTask(void *arg);
+    
+    /**
+     * @brief Thread starting the communication with the robot.
+     */
+    void StartRobotWithWDTask(void *arg);
     
     /**
      * @brief Thread handling control of the robot.
