@@ -139,27 +139,25 @@ private:
      */
     void StartRobotTask(void *arg);
     
-    /**
-     * @brief Thread starting the communication with the robot.
-     */
-    void StartRobotWithWDTask(void *arg);
     
     /**
      * @brief Thread handling control of the robot.
      */
     void MoveTask(void *arg);
     
+     /**
+     * @brief Thread handling control of the battery level indicator.
+     */   
+    void GetBatteryTask(void *arg);
     
-        /**
+    
+    /**
      * @brief Thread handling control of the robot.
      */
     void ErrorRobot(void *arg);
     
     
-     /**
-     * @brief Thread handling control of the battery level indicator.
-     */   
-    void GetBatteryTask(void *arg);
+
     /**********************************************************************/
     /* Queue services                                                     */
     /**********************************************************************/
