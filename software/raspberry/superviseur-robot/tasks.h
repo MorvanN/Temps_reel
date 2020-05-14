@@ -77,6 +77,8 @@ private:
     RT_TASK th_sendToMon;
     RT_TASK th_receiveFromMon;
     RT_TASK th_openComRobot;
+    RT_TASK th_closeComRobot;
+    RT_TASK th_RobotReset;
     RT_TASK th_startRobot;
     RT_TASK th_startRobotWithWD;
     RT_TASK th_move;
@@ -101,6 +103,8 @@ private:
     /**********************************************************************/
     RT_SEM sem_barrier;
     RT_SEM sem_openComRobot;
+    RT_SEM sem_closeComRobot;
+    RT_SEM sem_RobotReset;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_startRobotWithWD;
@@ -133,7 +137,17 @@ private:
      * @brief Thread opening communication with the robot.
      */
     void OpenComRobot(void *arg);
-
+    
+    /**
+     * @brief Thread opening communication with the robot.
+     */
+    void CloseComRobot(void *arg);
+    
+    /**
+     * @brief Thread opening communication with the robot.
+     */
+    void RobotReset(void *arg);   
+    
     /**
      * @brief Thread starting the communication with the robot.
      */
