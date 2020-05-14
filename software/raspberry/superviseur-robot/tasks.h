@@ -64,11 +64,13 @@ private:
     /**********************************************************************/
     ComMonitor monitor;
     ComRobot robot;
+    Camera * camera = new Camera();
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int WD = -1;
     int battery_ask = MESSAGE_ROBOT_BATTERY_GET;
     int battery_level = MESSAGE_ROBOT_BATTERY_LEVEL;
+    int CamOpen = 0;
     int errorRobot = 0;
     /**********************************************************************/
     /* Tasks                                                              */
@@ -84,6 +86,7 @@ private:
     RT_TASK th_move;
     RT_TASK th_battery;
     RT_TASK th_RobotError;
+    RT_TASK th_Cam;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -95,6 +98,7 @@ private:
     RT_MUTEX mutex_robotStartedWithWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
+    RT_MUTEX mutex_cam;
     RT_MUTEX mutex_errors_counting;
 
 
@@ -107,7 +111,7 @@ private:
     RT_SEM sem_RobotReset;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
-    RT_SEM sem_startRobotWithWD;
+
     
     /**********************************************************************/
     /* Message queues                                                     */
@@ -164,6 +168,10 @@ private:
      */   
     void GetBatteryTask(void *arg);
     
+     /**
+     * @brief Thread handling control of the battery level indicator.
+     */   
+    void Cam(void *arg);
     
     /**
      * @brief Thread handling control of the robot.
