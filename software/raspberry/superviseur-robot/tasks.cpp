@@ -306,10 +306,21 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
-        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD)) {
+        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD) ||
+                   msgRcv->CompareID(MESSAGE_ROBOT_START_WITH_WD)) {
+            
             rt_sem_v(&sem_startRobot);
-        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITH_WD)) {
-            rt_sem_v(&sem_startRobotWithWD);
+            if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD)){ 
+                rt_mutex_acquire(&mutex_WD, TM_INFINITE);  
+                WD=0; 
+                rt_mutex_release(&mutex_WD);
+            } else {
+                rt_mutex_acquire(&mutex_WD, TM_INFINITE);  
+                WD=1; 
+                rt_mutex_release(&mutex_WD);
+            }
+        //} else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITH_WD)) {
+          //  rt_sem_v(&sem_startRobotWithWD);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_GO_FORWARD) ||
                 msgRcv->CompareID(MESSAGE_ROBOT_GO_BACKWARD) ||
                 msgRcv->CompareID(MESSAGE_ROBOT_GO_LEFT) ||
@@ -373,8 +384,6 @@ void Tasks::StartRobotWithWDTask(void *arg) {
     /*while (1) {
         Message * msgSend;
 
-        
-        
         rt_sem_p(&sem_startRobotWithWD, TM_INFINITE);
         cout << "Start robot with watchdog (" << &sem_startRobotWithWD;
         rt_mutex_acquire(&mutex_robot, TM_INFINITE);
@@ -403,8 +412,8 @@ void Tasks::StartRobotWithWDTask(void *arg) {
 
         
 
-    }
-    */
+    }*/
+    
 }
 
 /**
@@ -421,13 +430,33 @@ void Tasks::StartRobotTask(void *arg) {
     while (1) {
 
         Message * msgSend;
+        int WatchDog=-1;
         rt_sem_p(&sem_startRobot, TM_INFINITE);
-        cout << "Start robot without watchdog (";
-        rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-        msgSend = robot.Write(robot.StartWithoutWD());
-        rt_mutex_release(&mutex_robot);
-        cout << msgSend->GetID();
-        cout << ")" << endl << flush;
+        
+        rt_mutex_acquire(&mutex_WD, TM_INFINITE);
+        WatchDog = WD;
+        rt_mutex_release(&mutex_WD);
+
+        //cout << "Start robot without watchdog (";
+        if (WatchDog == 0){
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend = robot.Write(robot.StartWithoutWD());
+            rt_mutex_release(&mutex_robot);
+            cout << "Start robot without watchdog"<< endl << flush;
+        } else if (WD == 1 ){
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend = robot.Write(robot.StartWithWD());
+            rt_mutex_release(&mutex_robot);    
+            cout << "Start robot with watchdog"<< endl << flush;
+
+        } else{
+            cout << "Start robot command but no watchdogs assign" << endl << flush;
+        }
+        //rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+        //msgSend = robot.Write(robot.StartWithoutWD());
+        //rt_mutex_release(&mutex_robot);
+        cout << "Message return after robot started : (" << msgSend->GetID() << ")" << endl << flush;
+        //cout << ")" << endl << flush;
 
         cout << "Movement answer: " << msgSend->ToString() << endl << flush;
         WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
@@ -437,6 +466,23 @@ void Tasks::StartRobotTask(void *arg) {
             robotStarted = 1;
             rt_mutex_release(&mutex_robotStarted);
         }
+
+        
+        /*if (WD==1 and robotStarted==1){
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend = robot.Write(new Message((MessageID)MESSAGE_ROBOT_RELOAD_WD));
+            rt_mutex_release(&mutex_robot);
+        }*/
+        int WatchDogTime=1000000000;
+        while (WD == 1 and robotStarted == 1){
+            rt_task_set_periodic(NULL, TM_NOW, WatchDogTime);
+            cout << "Send message to decrease Watchdog"<<endl;
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend = robot.Write(new Message((MessageID)MESSAGE_ROBOT_RELOAD_WD));
+            rt_mutex_release(&mutex_robot);
+            cout << "ReloadWD answer : " << msgSend->ToString() << endl << flush;
+            rt_task_wait_period(NULL);
+        }        
     }
 }
 
@@ -444,7 +490,7 @@ void Tasks::StartRobotTask(void *arg) {
  * @brief Thread handling control of the robot.
  */
 void Tasks::MoveTask(void *arg) {
-    int rs;
+    int rs = 1;
     int cpMove;
     Message * msgSend;
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
@@ -456,13 +502,14 @@ void Tasks::MoveTask(void *arg) {
     /**************************************************************************************/
     rt_task_set_periodic(NULL, TM_NOW, 100000000);
 
-    while (1) {
+    while ( rs == 1) {
         rt_task_wait_period(NULL);
         //cout << "Periodic movement update" << endl << flush;
         rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
         rs = robotStarted;
         rt_mutex_release(&mutex_robotStarted);
         if (rs == 1) {
+            
             rt_mutex_acquire(&mutex_move, TM_INFINITE);
             cpMove = move;
             rt_mutex_release(&mutex_move);
@@ -485,12 +532,12 @@ void Tasks::MoveTask(void *arg) {
                 rs=0;
                 
             } else if(msgSend->GetID() == MESSAGE_ANSWER_ACK){
+                
                 rt_mutex_acquire(&mutex_errors_counting, TM_INFINITE);
                 errorRobot=0;
                 rt_mutex_release(&mutex_errors_counting);
                 //cout <<"MOVE TASKS : ON A RECU UN ACK "<< endl << flush;
-            }
-            
+            }  
         }
     }
 }
@@ -543,8 +590,15 @@ void Tasks::GetBatteryTask(void *arg) {
                 cout<<"Le id recu est : "<<msgSend->ToString() << endl << flush;
                 rs=0;
                 
-            } else if (msgSend->GetID() == battery_level){
+            } else if (msgSend->GetID() == MESSAGE_ROBOT_BATTERY_LEVEL){
                 WriteInQueue(&q_messageToMon, msgSend);
+                
+                if (msgSend->ToString() == "EMPTY"){
+                    rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+                    msgSend=robot.Write(new Message((MessageID)MESSAGE_ROBOT_POWEROFF));
+                    rt_mutex_release(&mutex_robot);
+                }
+
                 rt_mutex_acquire(&mutex_errors_counting, TM_INFINITE);
                 errorRobot=0;
                 //cout << "BATTERY TASKS : RESET ERROR CAR FONCTIONNE " << endl << flush;
@@ -564,6 +618,7 @@ void Tasks::ErrorRobot(void *arg) {
     // Synchronization barrier (waiting that all tasks are started)
     rt_sem_p(&sem_barrier, TM_INFINITE);
     rt_task_set_periodic(NULL, TM_NOW, 10000000);
+    
     while(1){
         
         rt_task_wait_period(NULL);
@@ -571,18 +626,20 @@ void Tasks::ErrorRobot(void *arg) {
         error = errorRobot;
         //cout << "Loop verification verification error varlocal :" << error <<" varp :"<< errorRobot<<endl << flush;
         rt_mutex_release(&mutex_errors_counting);
+        
         if (error == 3 ){
             
-            WriteInQueue(&q_messageToMon, new Message((MessageID)MESSAGE_ANSWER_ROBOT_ERROR));
-            
+            WriteInQueue(&q_messageToMon, new Message((MessageID)MESSAGE_ANSWER_ROBOT_ERROR));   
             rt_mutex_acquire(&mutex_robot, TM_INFINITE);
             robot.Write(new Message((MessageID)MESSAGE_ROBOT_STOP));
-            robot.Write(new Message((MessageID)MESSAGE_ROBOT_START_WITHOUT_WD));
             rt_mutex_release(&mutex_robot);
-            cout<<"ON RESET LE ROBOT VIOLEMENT"<< endl << flush;
+            cout<<"ON ETEINT LE ROBOT VIOLEMENT"<< endl << flush;
             rt_mutex_acquire(&mutex_errors_counting, TM_INFINITE);
             errorRobot=0;
             rt_mutex_release(&mutex_errors_counting);
+            rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+            robotStarted=0;
+            rt_mutex_release(&mutex_robotStarted);
 
         }
     }    

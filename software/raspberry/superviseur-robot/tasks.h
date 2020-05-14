@@ -66,6 +66,7 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
+    int WD = -1;
     int battery_ask = MESSAGE_ROBOT_BATTERY_GET;
     int battery_level = MESSAGE_ROBOT_BATTERY_LEVEL;
     int errorRobot = 0;
@@ -88,6 +89,7 @@ private:
     RT_MUTEX mutex_monitor;
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
+    RT_MUTEX mutex_WD;
     RT_MUTEX mutex_robotStartedWithWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;

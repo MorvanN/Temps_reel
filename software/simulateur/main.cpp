@@ -230,7 +230,7 @@ int main(int argc, char const *argv[]) {
                     s += LABEL_ROBOT_OK;
                     break;
                 case LABEL_ROBOT_GET_BATTERY:
-                    cout << ">>> I give you my battery level :-o" << endl;
+                    //cout << ">>> I give you my battery level :-o" << endl;
                     clock_gettime(CLOCK_REALTIME, &t);
                     e = ellapse(start_time, t);
                     if (e > 20000000000) {
