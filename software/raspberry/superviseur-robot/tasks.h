@@ -64,11 +64,13 @@ private:
     /**********************************************************************/
     ComMonitor monitor;
     ComRobot robot;
+    Camera camera;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int WD = -1;
     int reset=0;
     int errorRobot = 0;
+    int CamOpen = 0;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -82,18 +84,21 @@ private:
     RT_TASK th_move;
     RT_TASK th_battery;
     RT_TASK th_RobotError;
+    RT_TASK th_Cam;
     
     /**********************************************************************/
     /* Mutex                                                              */
     /**********************************************************************/
     RT_MUTEX mutex_monitor;
     RT_MUTEX mutex_robot;
+    RT_MUTEX mutex_cam;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_reset;
     RT_MUTEX mutex_WD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_errors_counting;
+
 
 
     /**********************************************************************/
@@ -161,6 +166,10 @@ private:
      */   
     void GetBatteryTask(void *arg);
     
+    /**
+     * @brief Thread handling the camera.
+     */   
+    void Cam(void *arg);
     
     /**
      * @brief Thread handling control of the robot.

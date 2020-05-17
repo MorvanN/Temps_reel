@@ -23,6 +23,7 @@
 #define PRIORITY_TSERVER 30
 #define PRIORITY_TOPENCOMROBOT 20
 #define PRIORITY_TERROR 20
+#define PRIORITY_TRESET 25
 #define PRIORITY_TMOVE 19
 #define PRIORITY_TSENDTOMON 22
 #define PRIORITY_TRECEIVEFROMMON 25
@@ -148,7 +149,7 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    if (err = rt_task_create(&th_RobotReset, "th_RobotReset", 0, PRIORITY_TOPENCOMROBOT, 0)) {
+    if (err = rt_task_create(&th_RobotReset, "th_RobotReset", 0, PRIORITY_TRESET, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -165,6 +166,10 @@ void Tasks::Init() {
         exit(EXIT_FAILURE);
     }
     if (err = rt_task_create(&th_RobotError, "th_RobotError", 0, PRIORITY_TERROR, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_create(&th_Cam, "th_Cam", 0, PRIORITY_TCAMERA, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -228,6 +233,10 @@ void Tasks::Run() {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_task_start(&th_Cam, (void(*)(void*)) & Tasks::Cam, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }  
     
 
     cout << "Tasks launched" << endl << flush;
@@ -363,6 +372,15 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             rt_mutex_acquire(&mutex_move, TM_INFINITE);  
             move = msgRcv->GetID();
             cout << "JE CHANGE LE MOVE"<<endl<<flush;
+            rt_mutex_release(&mutex_move);
+        }  else if (msgRcv->CompareID(MESSAGE_CAM_OPEN)) {
+            rt_mutex_acquire(&mutex_cam, TM_INFINITE);  
+            CamOpen = 1;
+            rt_mutex_release(&mutex_move);
+            
+        } else if (msgRcv->CompareID(MESSAGE_CAM_CLOSE)) {
+            rt_mutex_acquire(&mutex_cam, TM_INFINITE);  
+            CamOpen = 0;
             rt_mutex_release(&mutex_move);
         }
         
@@ -706,6 +724,81 @@ void Tasks::GetBatteryTask(void *arg) {
         }
     }
 }
+
+
+
+void Tasks::Cam(void *arg) {
+    int CamOpenlocal =0;
+    int rs = 0;
+    bool ouvert = false;
+    RT_SEM_INFO *info;
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are started)
+    
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    
+    rt_task_set_periodic(NULL, TM_NOW, 100000000);
+
+    while(1){
+        
+        rt_mutex_acquire(&mutex_cam, TM_INFINITE);  
+        CamOpenlocal = CamOpen;
+        ouvert = camera.IsOpen();
+        rt_mutex_release(&mutex_cam);
+        
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        rs = robotStarted;
+        rt_mutex_release(&mutex_robotStarted);     
+        
+        
+        if (CamOpenlocal == 1 and rs==1){
+            
+            Message * msgSend;
+            
+            if (ouvert){
+               rt_mutex_acquire(&mutex_cam, TM_INFINITE);
+               ouvert = camera.IsOpen();
+               CamOpenlocal = CamOpen;
+               rt_mutex_release(&mutex_cam);                
+            } else{
+               rt_mutex_acquire(&mutex_cam, TM_INFINITE);
+               ouvert = camera.Open();
+               CamOpenlocal = CamOpen;
+               rt_mutex_release(&mutex_cam); 
+               
+               cout << "On A REUSSIR A OUVRIR LA CAM? ("<<ouvert<<")"<<endl<<flush;
+                if (not ouvert){
+                    WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_NACK));
+                }else {
+                    WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_ACK));                    
+                }    
+               sleep(3);
+            }
+
+            /*while (ouvert and CamOpenlocal == 1){
+                rt_task_wait_period(NULL);
+                
+                rt_mutex_acquire(&mutex_cam, TM_INFINITE);
+                Img image = camera.Grab();
+                ouvert = camera.IsOpen();
+                CamOpenlocal = CamOpen;
+                WriteInQueue(&q_messageToMon,new MessageImg((MessageID)MESSAGE_CAM_IMAGE,&image));
+                rt_mutex_release(&mutex_cam); 
+                
+                if (not CamOpenlocal){
+                    rt_mutex_acquire(&mutex_cam, TM_INFINITE);
+                    camera.Close();
+                    rt_mutex_release(&mutex_cam); 
+                    WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_ACK));
+                }
+
+            }*/
+
+        }
+
+    }
+}
+
 
 void Tasks::ErrorRobot(void *arg) {
     int error=0;
