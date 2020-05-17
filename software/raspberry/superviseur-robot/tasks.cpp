@@ -305,7 +305,7 @@ void Tasks::SendToMonTask(void* arg) {
  */
 void Tasks::ReceiveFromMonTask(void *arg) {
     Message *msgRcv;
-    
+    Message *msgSend;
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // Synchronization barrier (waiting that all tasks are starting)
     rt_sem_p(&sem_barrier, TM_INFINITE);
@@ -319,10 +319,17 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     while (1) {
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
-        
+
+      
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
-            delete(msgRcv);
-            exit(-1);
+            cout << "Communication with monitor lost"<<endl<<flush;
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            msgSend=robot.Write(new Message((MessageID)MESSAGE_ROBOT_POWEROFF));
+            rt_mutex_release(&mutex_robot);
+            WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_COM_ERROR));
+            rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+            robotStarted = 0;
+            rt_mutex_release(&mutex_robotStarted);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_CLOSE)) {
@@ -608,9 +615,7 @@ void Tasks::MoveTask(void *arg) {
                 
                 rt_mutex_acquire(&mutex_errors_counting, TM_INFINITE);
                 errorRobot++;
-                cout <<"MOVE TASKS : ON A AUGMENTE ERROR "<< errorRobot << endl << flush;
                 rt_mutex_release(&mutex_errors_counting);
-                cout<<"Le id recu est : " << msgSend->ToString() << endl << flush;
                 rs=0;
                 
             } else if(msgSend->GetID() == MESSAGE_ANSWER_ACK){
@@ -618,7 +623,14 @@ void Tasks::MoveTask(void *arg) {
                 rt_mutex_acquire(&mutex_errors_counting, TM_INFINITE);
                 errorRobot=0;
                 rt_mutex_release(&mutex_errors_counting);
-            }  
+            }  else if (msgSend->GetID() == MESSAGE_ANSWER_COM_ERROR){
+                    WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_COM_ERROR));
+                    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+                    robotStarted = 0;
+                    rt_mutex_release(&mutex_robotStarted);
+                    rs=0;
+                    exit(0);
+            } 
         }
     }
 }
@@ -682,6 +694,13 @@ void Tasks::GetBatteryTask(void *arg) {
                 errorRobot=0;
                 rt_mutex_release(&mutex_errors_counting);
 
+            } else if (msgSend->GetID() == MESSAGE_ANSWER_COM_ERROR){
+                    WriteInQueue(&q_messageToMon,new Message((MessageID)MESSAGE_ANSWER_COM_ERROR));
+                    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+                    robotStarted = 0;
+                    rt_mutex_release(&mutex_robotStarted);
+                    rs=0;
+                    exit(0);
             }
 
         }
