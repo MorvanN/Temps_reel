@@ -67,8 +67,7 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     int WD = -1;
-    int battery_ask = MESSAGE_ROBOT_BATTERY_GET;
-    int battery_level = MESSAGE_ROBOT_BATTERY_LEVEL;
+    int reset=0;
     int errorRobot = 0;
     /**********************************************************************/
     /* Tasks                                                              */
@@ -80,7 +79,6 @@ private:
     RT_TASK th_closeComRobot;
     RT_TASK th_RobotReset;
     RT_TASK th_startRobot;
-    RT_TASK th_startRobotWithWD;
     RT_TASK th_move;
     RT_TASK th_battery;
     RT_TASK th_RobotError;
@@ -91,8 +89,8 @@ private:
     RT_MUTEX mutex_monitor;
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
+    RT_MUTEX mutex_reset;
     RT_MUTEX mutex_WD;
-    RT_MUTEX mutex_robotStartedWithWD;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_battery;
     RT_MUTEX mutex_errors_counting;
@@ -107,7 +105,6 @@ private:
     RT_SEM sem_RobotReset;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
-    RT_SEM sem_startRobotWithWD;
     
     /**********************************************************************/
     /* Message queues                                                     */
